@@ -39,7 +39,6 @@ use sc_network::{
 	utils::{interval, LruHashSet},
 	NetworkBackend, NetworkEventStream, NetworkNotification, NetworkPeers,
 };
-};
 use sc_network_common::role::ObservedRole;
 use sc_network_sync::{SyncEvent, SyncEventStream};
 use sc_network_types::PeerId;

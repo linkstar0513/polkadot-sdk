@@ -18,7 +18,7 @@
 
 use crate::{
 	config, error,
-	peer_store::PeerStoreHandle,
+	peer_store::PeerStoreProvider,
 	protocol_controller::{self, SetId},
 	types::ProtocolName,
 };
@@ -46,6 +46,7 @@ use std::{
 	future::Future,
 	iter,
 	pin::Pin,
+	sync::Arc,
 	task::Poll,
 };
 
@@ -77,8 +78,6 @@ type PendingSyncSubstreamValidation =
 
 // Lock must always be taken in order declared here.
 pub struct Protocol<B: BlockT> {
-	// /// Used to report reputation changes.
-	// peer_store_handle: PeerStoreHandle,
 	/// Handles opening the unique substream and sending and receiving raw messages.
 	behaviour: Notifications,
 	/// List of notifications protocols that have been registered.
@@ -103,7 +102,7 @@ impl<B: BlockT> Protocol<B> {
 		registry: &Option<Registry>,
 		notification_protocols: Vec<config::NonDefaultSetConfig>,
 		block_announces_protocol: config::NonDefaultSetConfig,
-		_peer_store_handle: PeerStoreHandle,
+		_peer_store_handle: Arc<dyn PeerStoreProvider>,
 		protocol_controller_handles: Vec<protocol_controller::ProtocolHandle>,
 		from_protocol_controllers: TracingUnboundedReceiver<protocol_controller::Message>,
 	) -> error::Result<Self> {

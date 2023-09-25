@@ -382,7 +382,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 
 	let (statement_handler_proto, statement_config) =
 		sc_network_statement::StatementHandlerPrototype::new::<_, _, N>(
-			genesis_hash
+			genesis_hash,
 			config.chain_spec.fork_id(),
 		);
 	net_config.add_notification_protocol(statement_config);
@@ -391,7 +391,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		sc_mixnet::protocol_name(genesis_hash.as_ref(), config.chain_spec.fork_id());
 	let mixnet_notification_service = mixnet_config.as_ref().map(|mixnet_config| {
 		let (config, notification_service) =
-			sc_mixnet::peers_set_config(mixnet_protocol_name.clone(), mixnet_config);
+			sc_mixnet::peers_set_config::<_, N>(mixnet_protocol_name.clone(), mixnet_config);
 		net_config.add_notification_protocol(config);
 		notification_service
 	});
@@ -421,7 +421,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			mixnet_api_backend.expect("Mixnet API backend created if mixnet enabled"),
 			client.clone(),
 			sync_service.clone(),
-			network.clone(),
+			Arc::new(network.clone()), // TODO(aaro): fix
 			mixnet_protocol_name,
 			transaction_pool.clone(),
 			Some(keystore_container.keystore()),
@@ -945,7 +945,12 @@ mod tests {
 			crate::chain_spec::tests::integration_test_config_with_two_authorities(),
 			|config| {
 				let NewFullBase { task_manager, client, network, sync, transaction_pool, .. } =
-					new_full_base::<sc_network::NetworkWorker<_, _>>(config, None, false, |_, _| ())?;
+					new_full_base::<sc_network::NetworkWorker<_, _>>(
+						config,
+						None,
+						false,
+						|_, _| (),
+					)?;
 				Ok(sc_service_test::TestNetComponents::new(
 					task_manager,
 					client,

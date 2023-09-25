@@ -43,8 +43,7 @@ use sc_executor::{
 use sc_keystore::LocalKeystore;
 use sc_network::{
 	config::{FullNetworkConfiguration, SyncMode},
-	peer_store::PeerStore,
-	service::traits::RequestResponseConfig,
+	service::traits::{PeerStore, RequestResponseConfig},
 	NetworkBackend, NetworkStateInfo, NetworkStatusProvider,
 };
 use sc_network_bitswap::BitswapRequestHandler;
@@ -848,12 +847,14 @@ where
 		net_config.add_request_response_protocol(config);
 	}
 
-	if config.network.ipfs_server {
-		// TODO: better abstraction for the bitswap server
-		// let (handler, protocol_config) = BitswapRequestHandler::new(client.clone());
-		// spawn_handle.spawn("bitswap-request-handler", Some("networking"), handler.run());
-		// net_config.add_request_response_protocol(protocol_config);
-	}
+	let bitswap_config = if config.network.ipfs_server {
+		let (handler, config) = TNet::bitswap_server(client.clone());
+		spawn_handle.spawn("bitswap-request-handler", Some("networking"), handler);
+
+		Some(config)
+	} else {
+		None
+	};
 
 	// create transactions protocol and add it to the list of supported protocols of
 	let (transactions_handler_proto, transactions_config) =
@@ -865,7 +866,7 @@ where
 	net_config.add_notification_protocol(transactions_config);
 
 	// Create `PeerStore` and initialize it with bootnode peer ids.
-	let peer_store = PeerStore::new(
+	let peer_store = TNet::peer_store(
 		net_config
 			.network_config
 			.boot_nodes
@@ -895,6 +896,33 @@ where
 	let sync_service_import_queue = sync_service.clone();
 	let sync_service = Arc::new(sync_service);
 
+	// TODO: move this to litep2p backend
+	struct TestExecutor {
+		spawn_handle: SpawnTaskHandle,
+	}
+
+	impl std::fmt::Debug for TestExecutor {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			f.debug_struct("TestExecutor").finish()
+		}
+	}
+
+	impl litep2p::executor::Executor for TestExecutor {
+		fn run(&self, future: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) {
+			self.spawn_handle.spawn("libp2p-node", Some("networking"), future);
+		}
+
+		fn run_with_name(
+			&self,
+			name: &'static str,
+			future: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
+		) {
+			self.spawn_handle.spawn(name, Some("networking"), future);
+		}
+	}
+
+	let executor = Arc::new(TestExecutor { spawn_handle: spawn_handle.clone() });
+
 	let genesis_hash = client.hash(Zero::zero()).ok().flatten().expect("Genesis block exists; qed");
 	let network_params = sc_network::config::Params::<TBl, <TBl as BlockT>::Hash, TNet> {
 		role: config.role.clone(),
@@ -904,6 +932,7 @@ where
 				spawn_handle.spawn("libp2p-node", Some("networking"), fut);
 			})
 		},
+		spawn_handle: executor,
 		network_config: net_config,
 		peer_store: peer_store_handle,
 		genesis_hash,
@@ -911,6 +940,7 @@ where
 		fork_id: config.chain_spec.fork_id().map(ToOwned::to_owned),
 		metrics_registry: config.prometheus_config.as_ref().map(|config| config.registry.clone()),
 		block_announce_config,
+		bitswap_config,
 	};
 
 	let has_bootnodes = !network_params.network_config.network_config.boot_nodes.is_empty();

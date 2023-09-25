@@ -26,13 +26,14 @@ use crate::{
 	event::Event,
 	network_state::NetworkState,
 	request_responses::{IfDisconnected, RequestFailure},
-	service::signature::Signature,
+	service::{signature::Signature, PeerStoreProvider},
 	types::ProtocolName,
 	Multiaddr, ReputationChange,
 };
 
 use futures::{channel::oneshot, Stream};
 
+use sc_client_api::BlockBackend;
 use sc_network_common::{role::ObservedRole, ExHashT};
 use sc_network_types::PeerId;
 use sp_runtime::traits::Block as BlockT;
@@ -77,9 +78,6 @@ pub trait NotificationConfig: Debug {
 	/// Get access to the `SetConfig` of the notification protocol.
 	fn set_config(&self) -> &SetConfig;
 
-	/// Modifies the configuration to allow non-reserved nodes.
-	fn allow_non_reserved(&mut self, in_peers: u32, out_peers: u32);
-
 	/// Get protocol name.
 	fn protocol_name(&self) -> &ProtocolName;
 }
@@ -88,6 +86,16 @@ pub trait NotificationConfig: Debug {
 pub trait RequestResponseConfig: Debug {
 	/// Get protocol name.
 	fn protocol_name(&self) -> &ProtocolName;
+}
+
+/// Trait defining required functionality from `PeerStore`.
+#[async_trait::async_trait]
+pub trait PeerStore {
+	/// Get handle to `PeerStore`.
+	fn handle(&self) -> Arc<dyn PeerStoreProvider>;
+
+	/// Start running `PeerStore` event loop.
+	async fn run(self);
 }
 
 /// Networking backend.
@@ -105,6 +113,12 @@ pub trait NetworkBackend<B: BlockT + 'static, H: ExHashT>: Send + 'static {
 	/// using `NetworkService`.
 	type NetworkService<Block, Hash>: NetworkService + Clone;
 
+	/// Type implementing [`PeerStore`].
+	type PeerStore: PeerStore;
+
+	/// Bitswap config.
+	type BitswapConfig;
+
 	/// Create new `NetworkBackend`.
 	fn new(params: Params<B, H, Self>) -> Result<Self, Error>
 	where
@@ -113,6 +127,14 @@ pub trait NetworkBackend<B: BlockT + 'static, H: ExHashT>: Send + 'static {
 	/// Get handle to `NetworkService` of the `NetworkBackend`.
 	// TODO: return `Arc<dyn NetworkService>` instead
 	fn network_service(&self) -> Self::NetworkService<B, H>;
+
+	/// Create [`PeerStore`].
+	fn peer_store(bootnodes: Vec<sc_network_types::PeerId>) -> Self::PeerStore;
+
+	/// Create Bitswap server.
+	fn bitswap_server(
+		client: Arc<dyn BlockBackend<B> + Send + Sync>,
+	) -> (Pin<Box<dyn Future<Output = ()> + Send>>, Self::BitswapConfig);
 
 	/// Create notification protocol configuration and an associated `NotificationService`
 	/// for the protocol.
@@ -142,6 +164,19 @@ pub trait NetworkBackend<B: BlockT + 'static, H: ExHashT>: Send + 'static {
 pub trait NetworkSigner {
 	/// Signs the message with the `KeyPair` that defines the local [`PeerId`].
 	fn sign_with_local_identity(&self, msg: Vec<u8>) -> Result<Signature, SigningError>;
+
+	/// Verify signature using peer's public key.
+	///
+	/// `public_key` must be Protobuf-encoded ed25519 public key.
+	///
+	/// Returns `Err(())` if public cannot be parsed into a valid ed25519 public key.
+	fn verify(
+		&self,
+		peer_id: sc_network_types::PeerId,
+		public_key: &Vec<u8>,
+		signature: &Vec<u8>,
+		message: &Vec<u8>,
+	) -> Result<bool, ()>;
 }
 
 impl<T> NetworkSigner for Arc<T>
@@ -151,6 +186,16 @@ where
 {
 	fn sign_with_local_identity(&self, msg: Vec<u8>) -> Result<Signature, SigningError> {
 		T::sign_with_local_identity(self, msg)
+	}
+
+	fn verify(
+		&self,
+		peer_id: sc_network_types::PeerId,
+		public_key: &Vec<u8>,
+		signature: &Vec<u8>,
+		message: &Vec<u8>,
+	) -> Result<bool, ()> {
+		T::verify(self, peer_id, public_key, signature, message)
 	}
 }
 
@@ -759,6 +804,15 @@ pub enum Direction {
 
 	/// Substream opened by the local node.
 	Outbound,
+}
+
+impl From<litep2p::protocol::notification::Direction> for Direction {
+	fn from(direction: litep2p::protocol::notification::Direction) -> Self {
+		match direction {
+			litep2p::protocol::notification::Direction::Inbound => Direction::Inbound,
+			litep2p::protocol::notification::Direction::Outbound => Direction::Outbound,
+		}
+	}
 }
 
 impl Direction {
