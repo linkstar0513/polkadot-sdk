@@ -541,6 +541,7 @@ where
 		client: client.clone(),
 		select_chain: select_chain.clone(),
 		create_inherent_data_providers: move |_, ()| async move {
+			// dummy
 			// timestamp: 2023-11-13T09:56:36.000Z | slot: 283311566
 			let timestamp = sp_timestamp::InherentDataProvider::new(sp_timestamp::Timestamp::new(
 				1699869396000,
