@@ -733,8 +733,8 @@ impl Stream for Peerset {
 
 						self.peers.insert(peer, PeerState::Backoff);
 					},
-					Some(PeerState::Opening { .. }) => {
-						todo!("queue pending close for the stream and once it opens, close the stream");
+					Some(PeerState::Opening { direction }) => {
+						self.peers.insert(peer, PeerState::Canceled { direction });
 					},
 					// protocol had issued two disconnection requests in rapid succession and the
 					// substream hadn't closed before the second disconnection request was received,
