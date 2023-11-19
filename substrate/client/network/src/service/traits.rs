@@ -26,12 +26,13 @@ use crate::{
 	event::Event,
 	network_state::NetworkState,
 	request_responses::{IfDisconnected, RequestFailure},
-	service::{signature::Signature, PeerStoreProvider},
+	service::{metrics::Metrics, signature::Signature, PeerStoreProvider},
 	types::ProtocolName,
 	Multiaddr, ReputationChange,
 };
 
 use futures::{channel::oneshot, Stream};
+use prometheus_endpoint::Registry;
 
 use sc_client_api::BlockBackend;
 use sc_network_common::{role::ObservedRole, ExHashT};
@@ -131,6 +132,9 @@ pub trait NetworkBackend<B: BlockT + 'static, H: ExHashT>: Send + 'static {
 	/// Create [`PeerStore`].
 	fn peer_store(bootnodes: Vec<sc_network_types::PeerId>) -> Self::PeerStore;
 
+	/// Register networking metrics that are used by the backend.
+	fn register_metrics(registry: Option<&Registry>) -> Option<Metrics>;
+
 	/// Create Bitswap server.
 	fn bitswap_server(
 		client: Arc<dyn BlockBackend<B> + Send + Sync>,
@@ -144,6 +148,7 @@ pub trait NetworkBackend<B: BlockT + 'static, H: ExHashT>: Send + 'static {
 		max_notification_size: u64,
 		handshake: Option<NotificationHandshake>,
 		set_config: SetConfig,
+		metrics: Option<Metrics>,
 	) -> (Self::NotificationProtocolConfig, Box<dyn NotificationService>);
 
 	/// Create request-response protocol configuration.

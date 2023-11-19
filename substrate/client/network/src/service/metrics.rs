@@ -38,6 +38,11 @@ pub fn register(registry: &Registry, sources: MetricSources) -> Result<Metrics, 
 	Metrics::register(registry)
 }
 
+// TODO(aaro): zzz
+pub fn register_without_sources(registry: Option<&Registry>) -> Option<Metrics> {
+	Metrics::register(registry?).ok()
+}
+
 /// Predefined metric sources that are fed directly into prometheus.
 pub struct MetricSources {
 	pub bandwidth: Arc<BandwidthSinks>,
@@ -45,6 +50,7 @@ pub struct MetricSources {
 }
 
 /// Dedicated metrics.
+#[derive(Clone)]
 pub struct Metrics {
 	// This list is ordered alphabetically
 	pub connections_closed_total: CounterVec<U64>,

@@ -70,6 +70,7 @@ pub fn beefy_peers_set_config<
 	N: sc_network::NetworkBackend<B, <B as sp_runtime::traits::Block>::Hash>,
 >(
 	gossip_protocol_name: sc_network::ProtocolName,
+	metrics: Option<sc_network::service::metrics::Metrics>,
 ) -> (N::NotificationProtocolConfig, Box<dyn sc_network::NotificationService>) {
 	let (cfg, notification_service) = N::notification_config(
 		gossip_protocol_name,
@@ -82,6 +83,7 @@ pub fn beefy_peers_set_config<
 			reserved_nodes: Vec::new(),
 			non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 		},
+		metrics,
 	);
 	(cfg, notification_service)
 }

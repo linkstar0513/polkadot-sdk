@@ -43,7 +43,10 @@ use sc_executor::{
 use sc_keystore::LocalKeystore;
 use sc_network::{
 	config::{FullNetworkConfiguration, SyncMode},
-	service::traits::{PeerStore, RequestResponseConfig},
+	service::{
+		metrics::Metrics as NetworkMetrics,
+		traits::{PeerStore, RequestResponseConfig},
+	},
 	NetworkBackend, NetworkStateInfo, NetworkStatusProvider,
 };
 use sc_network_bitswap::BitswapRequestHandler;
@@ -705,6 +708,8 @@ pub struct BuildNetworkParams<
 	/// User specified block relay params. If not specified, the default
 	/// block request handler will be used.
 	pub block_relay: Option<BlockRelayParams<TBl, TNet>>,
+	/// Metrics.
+	pub metrics: Option<NetworkMetrics>,
 }
 
 /// Build the network service, the network status sinks and an RPC sender.
@@ -745,6 +750,7 @@ where
 		block_announce_validator_builder,
 		warp_sync_params,
 		block_relay,
+		metrics,
 	} = params;
 
 	if warp_sync_params.is_none() && config.network.sync_mode.is_warp() {
@@ -862,6 +868,7 @@ where
 			protocol_id.clone(),
 			genesis_hash,
 			config.chain_spec.fork_id(),
+			metrics.clone(),
 		);
 	net_config.add_notification_protocol(transactions_config);
 
@@ -881,6 +888,7 @@ where
 		Roles::from(&config.role),
 		client.clone(),
 		config.prometheus_config.as_ref().map(|config| config.registry.clone()).as_ref(),
+		metrics.clone(),
 		&net_config,
 		protocol_id.clone(),
 		&config.chain_spec.fork_id().map(ToOwned::to_owned),

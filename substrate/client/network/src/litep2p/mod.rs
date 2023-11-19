@@ -45,7 +45,12 @@ use crate::{
 	multiaddr::Protocol,
 	peer_store::PeerStoreProvider,
 	protocol,
-	service::{ensure_addresses_consistent_with_transport, out_events, traits::NetworkBackend},
+	service::{
+		ensure_addresses_consistent_with_transport,
+		metrics::{register_without_sources, Metrics},
+		out_events,
+		traits::NetworkBackend,
+	},
 	IfDisconnected, NetworkStatus, NotificationService, ProtocolName, RequestFailure,
 };
 
@@ -66,6 +71,7 @@ use litep2p::{
 	Litep2p, Litep2pEvent,
 };
 use parking_lot::Mutex;
+use prometheus_endpoint::Registry;
 use tokio_stream::StreamMap;
 
 use sc_client_api::BlockBackend;
@@ -564,6 +570,10 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkBackend<B, H> for Litep2pNetworkBac
 		peerstore
 	}
 
+	fn register_metrics(registry: Option<&Registry>) -> Option<Metrics> {
+		register_without_sources(registry)
+	}
+
 	/// Create Bitswap server.
 	fn bitswap_server(
 		client: Arc<dyn BlockBackend<B> + Send + Sync>,
@@ -578,6 +588,7 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkBackend<B, H> for Litep2pNetworkBac
 		max_notification_size: u64,
 		handshake: Option<NotificationHandshake>,
 		set_config: SetConfig,
+		metrics: Option<Metrics>,
 	) -> (Self::NotificationProtocolConfig, Box<dyn NotificationService>) {
 		Self::NotificationProtocolConfig::new(
 			protocol_name,
@@ -585,6 +596,7 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkBackend<B, H> for Litep2pNetworkBac
 			max_notification_size as usize,
 			handshake,
 			set_config,
+			metrics,
 		)
 	}
 

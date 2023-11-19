@@ -27,7 +27,7 @@ use crate::{
 			NotificationProtocol,
 		},
 	},
-	service::traits::NotificationConfig,
+	service::{metrics::Metrics, traits::NotificationConfig},
 	NotificationService, ProtocolName,
 };
 
@@ -90,6 +90,7 @@ impl NotificationProtocolConfig {
 		max_notification_size: usize,
 		handshake: Option<NotificationHandshake>,
 		set_config: SetConfig,
+		metrics: Option<Metrics>,
 	) -> (Self, Box<dyn NotificationService>) {
 		// create `Peerset`/`Peerstore` handle for the protocol
 		let connected_peers = Arc::new(Default::default());
@@ -119,7 +120,7 @@ impl NotificationProtocolConfig {
 		// initialize the actual object implementing `NotificationService` and combine the
 		// `litep2p::NotificationHandle` with `Peerset` to implement a full and independent
 		// notification protocol runner
-		let protocol = NotificationProtocol::new(protocol_name.clone(), handle, peerset);
+		let protocol = NotificationProtocol::new(protocol_name.clone(), handle, peerset, metrics);
 
 		(
 			Self {

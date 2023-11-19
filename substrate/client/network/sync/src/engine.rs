@@ -60,7 +60,10 @@ use sc_network::{
 	config::{FullNetworkConfiguration, NotificationHandshake, ProtocolId, SetConfig},
 	peer_store::PeerStoreProvider,
 	request_responses::{IfDisconnected, RequestFailure},
-	service::traits::{Direction, NotificationConfig, NotificationEvent, ValidationResult},
+	service::{
+		metrics::Metrics as NetworkMetrics,
+		traits::{Direction, NotificationConfig, NotificationEvent, ValidationResult},
+	},
 	types::ProtocolName,
 	utils::LruHashSet,
 	NetworkBackend, NotificationService, ReputationChange,
@@ -354,6 +357,7 @@ where
 		roles: Roles,
 		client: Arc<Client>,
 		metrics_registry: Option<&Registry>,
+		network_metrics: Option<NetworkMetrics>,
 		net_config: &FullNetworkConfiguration<B, <B as BlockT>::Hash, N>,
 		protocol_id: ProtocolId,
 		fork_id: &Option<String>,
@@ -456,6 +460,7 @@ where
 					.flatten()
 					.expect("Genesis block exists; qed"),
 				&net_config.network_config.default_peers_set,
+				network_metrics,
 			);
 
 		let chain_sync = ChainSync::new(
@@ -1388,6 +1393,7 @@ where
 		best_hash: B::Hash,
 		genesis_hash: B::Hash,
 		set_config: &SetConfig,
+		metrics: Option<NetworkMetrics>,
 	) -> (N::NotificationProtocolConfig, Box<dyn NotificationService>) {
 		let block_announces_protocol = {
 			let genesis_hash = genesis_hash.as_ref();
@@ -1412,16 +1418,8 @@ where
 				best_hash,
 				genesis_hash,
 			))),
-			// NOTE: `set_config` will be ignored by `protocol.rs` as the block announcement
-			// protocol is still hardcoded into the peerset.
-			// TODO: update comment to reflect reality
 			set_config.clone(),
-			// SetConfig {
-			// 	in_peers: 0,
-			// 	out_peers: 0,
-			// 	reserved_nodes: Vec::new(),
-			// 	non_reserved_mode: NonReservedPeerMode::Deny,
-			// },
+			metrics,
 		)
 	}
 

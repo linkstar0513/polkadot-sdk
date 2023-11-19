@@ -76,6 +76,7 @@ use libp2p::{
 use log::{debug, error, info, trace, warn};
 use metrics::{Histogram, HistogramVec, MetricSources, Metrics};
 use parking_lot::Mutex;
+use prometheus_endpoint::Registry;
 
 use sc_client_api::BlockBackend;
 use sc_network_common::{
@@ -103,8 +104,7 @@ use std::{
 pub use behaviour::{InboundFailure, OutboundFailure, ResponseFailure};
 pub use libp2p::identity::{DecodingError, Keypair, PublicKey};
 pub use protocol::NotificationsSink;
-
-mod metrics;
+pub mod metrics;
 
 pub(crate) mod out_events;
 
@@ -179,6 +179,10 @@ where
 		PeerStore::new(bootnodes.into_iter().map(From::from).collect())
 	}
 
+	fn register_metrics(registry: Option<&Registry>) -> Option<Metrics> {
+		None
+	}
+
 	fn bitswap_server(
 		client: Arc<dyn BlockBackend<B> + Send + Sync>,
 	) -> (Pin<Box<dyn Future<Output = ()> + Send>>, Self::BitswapConfig) {
@@ -194,6 +198,7 @@ where
 		max_notification_size: u64,
 		handshake: Option<NotificationHandshake>,
 		set_config: SetConfig,
+		_metrics: Option<Metrics>,
 	) -> (Self::NotificationProtocolConfig, Box<dyn NotificationService>) {
 		NonDefaultSetConfig::new(
 			protocol_name,

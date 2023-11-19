@@ -498,7 +498,7 @@ impl Peerset {
 					log::debug!(
 						target: LOG_TARGET,
 						"{}: inbound substream for {peer:?} cannot be accepted because there aren't any free slots",
-						self.protocol
+						self.protocol,
 					);
 
 					self.num_out -= 1;
@@ -531,7 +531,11 @@ impl Peerset {
 				return ValidationResult::Reject
 			},
 			state => {
-				log::warn!(target: LOG_TARGET, "{}: invalid state ({state:?}) for inbound substream, peer {peer:?}", self.protocol);
+				log::warn!(
+					target: LOG_TARGET,
+					"{}: invalid state ({state:?}) for inbound substream, peer {peer:?}",
+					self.protocol
+				);
 				debug_assert!(false);
 				return ValidationResult::Reject
 			},
@@ -553,7 +557,7 @@ impl Peerset {
 		log::trace!(
 			target: LOG_TARGET,
 			"{}: reject {peer:?}, not a reserved peer and no free inbound slots",
-			self.protocol
+			self.protocol,
 		);
 
 		*state = PeerState::Disconnected;
@@ -562,7 +566,11 @@ impl Peerset {
 
 	/// Report to [`Peerset`] that an inbound substream was opened and that it should validate it.
 	pub fn report_substream_open_failure(&mut self, peer: PeerId, error: NotificationError) {
-		log::trace!(target: LOG_TARGET, "{}: failed to open substream to {peer:?}: {error:?}", self.protocol);
+		log::trace!(
+			target: LOG_TARGET,
+			"{}: failed to open substream to {peer:?}: {error:?}",
+			self.protocol,
+		);
 
 		match self.peers.get(&peer) {
 			Some(PeerState::Opening { direction: Direction::Outbound(Reserved::No) }) => {
@@ -597,7 +605,11 @@ impl Peerset {
 			// reserved
 			Some(PeerState::Opening { direction: Direction::Inbound(Reserved::Yes) }) |
 			Some(PeerState::Opening { direction: Direction::Outbound(Reserved::Yes) }) => {
-				log::debug!(target: LOG_TARGET, "{}: substream open failure fo rreserved peer {peer:?}", self.protocol);
+				log::debug!(
+					target: LOG_TARGET,
+					"{}: substream open failure for reserved peer {peer:?}",
+					self.protocol,
+				);
 			},
 			state => {
 				panic!(
@@ -696,11 +708,16 @@ impl Stream for Peerset {
 			self.peers.insert(peer, PeerState::Disconnected);
 		}
 
+		// TODO(aaro): coalesce the results into one call to `litep2p`
 		if let Poll::Ready(Some(action)) = Pin::new(&mut self.cmd_rx).poll_next(cx) {
 			match action {
 				PeersetCommand::DisconnectPeer { peer } => match self.peers.remove(&peer) {
 					Some(PeerState::Connected { direction }) => {
-						log::trace!(target: LOG_TARGET, "close connection to {peer:?}, direction {direction:?}");
+						log::trace!(
+							target: LOG_TARGET,
+							"{}: close connection to {peer:?}, direction {direction:?}",
+							self.protocol,
+						);
 
 						self.peers.insert(peer, PeerState::Closing { direction });
 						return Poll::Ready(Some(PeersetNotificationCommand::CloseSubstream {
@@ -708,7 +725,12 @@ impl Stream for Peerset {
 						}))
 					},
 					Some(PeerState::Backoff) => {
-						log::trace!(target: LOG_TARGET, "{}: cannot disconnect {peer:?}, already backed-off", self.protocol);
+						log::trace!(
+							target: LOG_TARGET,
+							"{}: cannot disconnect {peer:?}, already backed-off",
+							self.protocol,
+						);
+
 						self.peers.insert(peer, PeerState::Backoff);
 					},
 					Some(PeerState::Opening { .. }) => {
@@ -721,13 +743,18 @@ impl Stream for Peerset {
 						log::trace!(
 							target: LOG_TARGET,
 							"{}: cannot disconnect {peer:?}, already closing ({state:?})",
-							self.protocol
+							self.protocol,
 						);
 
 						self.peers.insert(peer, state);
 					},
 					Some(state) => {
-						log::warn!(target: LOG_TARGET, "{}: cannot disconnect {peer:?}, invalid state: {state:?}", self.protocol);
+						log::warn!(
+							target: LOG_TARGET,
+							"{}: cannot disconnect {peer:?}, invalid state: {state:?}",
+							self.protocol,
+						);
+
 						self.peers.insert(peer, state);
 						debug_assert!(false);
 					},

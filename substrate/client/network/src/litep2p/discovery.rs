@@ -328,7 +328,7 @@ impl Stream for Discovery {
 			},
 			Poll::Ready(Some(KademliaEvent::GetRecordSuccess { query_id, record })) =>
 				return Poll::Ready(Some(DiscoveryEvent::GetRecordSuccess { query_id, record })),
-			Poll::Ready(Some(KademliaEvent::PutRecordSuccess { query_id })) =>
+			Poll::Ready(Some(KademliaEvent::PutRecordSucess { query_id, key })) =>
 				return Poll::Ready(Some(DiscoveryEvent::PutRecordSuccess { query_id })),
 			Poll::Ready(Some(KademliaEvent::QueryFailed { query_id })) =>
 				return Poll::Ready(Some(DiscoveryEvent::QueryFailed { query_id })),
